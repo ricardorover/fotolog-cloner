@@ -19,27 +19,33 @@ def clonePage(url):
 	print('		cloning ' + url + "...")
 	tree = getTreeForUrl(url)
 
-	photoUrl = tree.xpath('//div[@id="flog_img_holder"]/a/img/@src')[0]
-	description = tree.xpath('//div[@id="description_photo"]//text()')[0]
+	originalPhotoUrl = tree.xpath('//div[@id="flog_img_holder"]/a/img/@src')[0]
+	photoUrl = downloadPhoto(originalPhotoUrl)
+	description = tree.xpath('//div[@id="description_photo"]/p[normalize-space()]/text()')
+	date = description[-1]
+	description = '\n'.join(description)
+	description = description[0:len(description) - len(date)]
 	comments = scrapComments(tree)
 
-	print comments
-
-	with open(getFilePathToSave(url), 'w') as outfile:
-	    json.dump({"originalUrl":url, "photoUrl":photoUrl, "description":description, "comments":comments}, outfile)
+	with open(getFilePathToSave(url)+".json", 'w') as outfile:
+	    json.dump({"originalUrl":url, "originalPhotoUrl":originalPhotoUrl, "photoUrl":photoUrl, "date":date, "description":description, "comments":comments}, outfile, indent=4)
 
 	nextEntry = tree.xpath('//div[@id="flog_img_holder"]/a/@href')
 	return nextEntry[0] if nextEntry else None
 
-def adjustElementsArray(comments):
-	response = []
-	for comment in comments:
-		response.append(html.tostring(comment))
-	return response
+def downloadPhoto(url):
+	path = url.split('/')[-2]
+	local_filename = url.split('/')[-1]
+	r = requests.get(url, stream=True)
+	with open(path + "/" + local_filename, 'wb') as f:
+		for chunk in r.iter_content(chunk_size=1024):
+			if chunk: # filter out keep-alive new chunks
+				f.write(chunk)
+	return local_filename
 
 def getFilePathToSave(url):
 	folder = url.split("/")[-3]
-	fileName = url.split("/")[-2]+".json"
+	fileName = url.split("/")[-2]
 
 	if not os.path.exists(folder):
 		os.makedirs(folder)
