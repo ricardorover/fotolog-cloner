@@ -26,10 +26,11 @@ def clonePage(url):
 	date = description[-1]
 	description = '\n'.join(description)
 	description = description[0:len(description) - len(date)]
+	wallNextPages = tree.xpath('//ul[@id="slide_list_photo"]/li/a/@href')
 	comments = scrapeComments(tree)
 
 	with open(getFilePathToSave(url)+".json", 'w') as outfile:
-	    json.dump({"originalUrl":url, "originalPhotoUrl":originalPhotoUrl, "photoUrl":photoUrl, "date":date, "description":description, "comments":comments}, outfile, indent=4)
+	    json.dump({"originalUrl":url, "originalPhotoUrl":originalPhotoUrl, "photoUrl":photoUrl, "date":date, "description":description, "comments":comments, "wallNextPages":wallNextPages}, outfile, indent=4)
 
 	nextEntry = tree.xpath('//div[@id="flog_img_holder"]/a/@href')
 	return nextEntry[0] if nextEntry else None
