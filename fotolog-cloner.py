@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: UTF8 -*-
 
 import sys
 import os
@@ -25,7 +26,7 @@ def clonePage(url):
 	date = description[-1]
 	description = '\n'.join(description)
 	description = description[0:len(description) - len(date)]
-	comments = scrapComments(tree)
+	comments = scrapeComments(tree)
 
 	with open(getFilePathToSave(url)+".json", 'w') as outfile:
 	    json.dump({"originalUrl":url, "originalPhotoUrl":originalPhotoUrl, "photoUrl":photoUrl, "date":date, "description":description, "comments":comments}, outfile, indent=4)
@@ -34,38 +35,49 @@ def clonePage(url):
 	return nextEntry[0] if nextEntry else None
 
 def downloadPhoto(url):
-	path = url.split('/')[-2]
+	folder = url.split('/')[-2]
+	if not os.path.exists(folder):
+		os.makedirs(folder)
 	local_filename = url.split('/')[-1]
 	r = requests.get(url, stream=True)
-	with open(path + "/" + local_filename, 'wb') as f:
+	with open(folder + "/" + local_filename, 'wb') as f:
 		for chunk in r.iter_content(chunk_size=1024):
-			if chunk: # filter out keep-alive new chunks
+			if chunk:
 				f.write(chunk)
 	return local_filename
 
 def getFilePathToSave(url):
 	folder = url.split("/")[-3]
-	fileName = url.split("/")[-2]
-
 	if not os.path.exists(folder):
 		os.makedirs(folder)
+	fileName = url.split("/")[-2]
 	return folder + "/" + fileName
 
-def scrapComments(tree):
-	commentAuthorNames = tree.xpath('//div[@class="flog_img_comments" and not(@id="comment_form")]//b/a/text()')
-	commentAuthorUrls = tree.xpath('//div[@class="flog_img_comments" and not(@id="comment_form")]//b/a/@href')
-	commentMessages = tree.xpath('concat-texts(//div[@class="flog_img_comments" and not(@id="comment_form")]/p)')
-	comments = []
+def scrapeComments(tree):
+	comments = tree.xpath('//div[@class="flog_img_comments" and not(@id="comment_form")]')
+	commentObjects = []
+	for comment in comments:
+		authorUrl = comment.xpath('.//a/@href')[0]
+		authorNameRaw = comment.xpath('.//a/text()')
+		authorName = authorNameRaw[0] if authorNameRaw else authorUrl.split("/")[-2]
+		dateIndex = len(authorName) + 4
+		message = comment.xpath('concat-texts(./p)')[0]
+		message = fixMessageWithEmailObfuscatorScriptIfNeeded(comment, message, authorName)
 
-	for i, commentAuthorName in enumerate(commentAuthorNames, start=0):
-		comment = {'authorName':commentAuthorName, 'authorUrl':commentAuthorUrls[i], 'message':commentMessages[i]}
-		dateIndex = len(comment["authorName"]) + 4
-		commentDate = comment["message"][dateIndex:dateIndex + 10]
-		comment["date"] = commentDate
-		comment["message"] = comment["message"][dateIndex + 11:len(comment["message"])]
-		comments.append(comment)
-	return comments
+		date = message[dateIndex:dateIndex + 10]
+		message = message[dateIndex + 11:len(message)]
+		#print "(date: " + date + " - " + authorUrl + ") " + authorName + ": " + message
+		commentObjects.append({'authorName':authorName, 'authorUrl':authorUrl, 'message':message, 'date':date})
+	return commentObjects
 
+def fixMessageWithEmailObfuscatorScriptIfNeeded(comment, message, authorName):
+	mailObfuscatorScriptRaw = comment.xpath('.//script/text()')
+	mailObfuscatorScript = "[email protected]   "+mailObfuscatorScriptRaw[0] if mailObfuscatorScriptRaw else ""
+	if mailObfuscatorScript:
+		return authorName + "    " + message[len(mailObfuscatorScript):len(message)]
+	else:
+		return message
+		
 
 ns = html.etree.FunctionNamespace(None)
 def cat(context, elements):
@@ -82,4 +94,4 @@ while nextEntry:
 	nextEntry = clonePage(nextEntry)
 	count += 1
 
-print('Done! Cloned ' + count + ' entries')
+print('Done! Cloned ' + str(count) + ' entries')
