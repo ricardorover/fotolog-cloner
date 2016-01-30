@@ -22,17 +22,19 @@ def clonePage(url):
 
 	originalPhotoUrl = tree.xpath('//div[@id="flog_img_holder"]/a/img/@src')[0]
 	photoUrl = downloadPhoto(originalPhotoUrl)
+	title = tree.xpath('//div[@id="description_photo"]/h1[normalize-space()]/text()')
+	title = title[0] if title else ""
 	description = tree.xpath('//div[@id="description_photo"]/p[normalize-space()]/text()')
 	date = description[-1]
 	description = '\n'.join(description)
 	description = description[0:len(description) - len(date)]
-	wallNextPages = tree.xpath('//ul[@id="slide_list_photo"]/li/a/@href')
 	comments = scrapeComments(tree)
+	wallNextEntries = tree.xpath('//ul[@id="slide_list_photo"]/li/a/@href')
+	nextEntry = tree.xpath('//div[@id="flog_img_holder"]/a/@href')
 
 	with open(getFilePathToSave(url)+".json", 'w') as outfile:
-	    json.dump({"originalUrl":url, "originalPhotoUrl":originalPhotoUrl, "photoUrl":photoUrl, "date":date, "description":description, "comments":comments, "wallNextPages":wallNextPages}, outfile, indent=4)
+	    json.dump({"originalUrl":url, "originalPhotoUrl":originalPhotoUrl, "photoUrl":photoUrl, "date":date, "title":title, "description":description, "comments":comments, "wallNextEntries":wallNextEntries, "nextEntry":nextEntry}, outfile, indent=4)
 
-	nextEntry = tree.xpath('//div[@id="flog_img_holder"]/a/@href')
 	return nextEntry[0] if nextEntry else None
 
 def downloadPhoto(url):
@@ -64,10 +66,8 @@ def scrapeComments(tree):
 		dateIndex = len(authorName) + 4
 		message = comment.xpath('concat-texts(./p)')[0]
 		message = fixMessageWithEmailObfuscatorScriptIfNeeded(comment, message, authorName)
-
 		date = message[dateIndex:dateIndex + 10]
 		message = message[dateIndex + 11:len(message)]
-		#print "(date: " + date + " - " + authorUrl + ") " + authorName + ": " + message
 		commentObjects.append({'authorName':authorName, 'authorUrl':authorUrl, 'message':message, 'date':date})
 	return commentObjects
 
@@ -95,4 +95,4 @@ while nextEntry:
 	nextEntry = clonePage(nextEntry)
 	count += 1
 
-print('Done! Cloned ' + str(count) + ' entries')
+print('Done! Cloned all the ' + str(count) + ' entries from '+rootUrl)
